@@ -1,0 +1,5 @@
+source("d:/R_project/실제분석단계/STEP 1_데이터 로드_01.R", encoding = "UTF-8")
+source("d:/R_project/실제분석단계/STEP 2_group 만들기_02.R", encoding = "UTF-8")
+source("d:/R_project/실제분석단계/STEP 3_DESeq2 준비_03.R", encoding = "UTF-8")
+source("d:/R_project/실제분석단계/STEP 4_결과 저장_04.R", encoding = "UTF-8")
+source("d:/R_project/실제분석단계/STEP 5_추가시각화_05.R", encoding = "UTF-8")
