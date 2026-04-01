@@ -1,0 +1,67 @@
+네. VS Code에서 따로 CRAN 미러를 설정하는 게 아니라, R 시작 설정에 기본 저장소를 넣어 자동화하는 방식이 가장 깔끔합니다. R은 시작할 때 .Rprofile이 있으면 자동으로 읽고, 여기서 options("repos")를 설정하면 install.packages() 때 미러 선택 창이 안 뜹니다.
+
+가장 무난한 설정은 아래 한 줄입니다.
+
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+
+이 방식은 R 문서와 CRAN 문서에서 안내하는 표준 방법입니다. repos["CRAN"]에 URL을 넣어 기본 CRAN 저장소를 지정하면 됩니다.
+
+가장 쉬운 방법
+1) VS Code에서 터미널 열기
+`Ctrl + ``
+2) R 사용자 홈 경로 확인
+
+R 콘솔에서 아래 실행:
+
+path.expand("~")
+
+보통 Windows에서는 C:/Users/사용자이름 같은 경로가 나옵니다.
+
+3) 그 위치에 .Rprofile 파일 만들기
+
+예:
+C:\Users\사용자이름\.Rprofile
+
+파일 내용은 이렇게 넣으세요.
+
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+4) VS Code와 R 세션 다시 시작
+
+이제 새 R 세션에서 install.packages("languageserver") 같은 걸 실행하면 mirror 선택창 없이 바로 설치됩니다. .Rprofile은 R 시작 시 자동으로 로드됩니다.
+
+한국/가까운 서버로 고정하고 싶다면
+
+cloud.r-project.org는 보통 자동으로 가까운 미러로 연결해 줘서 편합니다. 특정 미러를 직접 고정하려면 그 미러 URL을 넣어도 되지만, 관리 편의성 면에서는 cloud.r-project.org가 보통 더 무난합니다. R은 https 같은 지원되는 URL 기반 저장소를 install.packages()에 사용할 수 있습니다.
+
+예시:
+
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+VS Code 안에서 바로 만드는 더 쉬운 방법
+
+R 콘솔에서 아래를 실행하면 .Rprofile을 자동 생성 또는 수정할 수 있습니다.
+
+usethis::edit_r_profile()
+
+그다음 열린 파일에 아래를 넣고 저장:
+
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+
+다만 usethis가 설치되지 않았다면 먼저 설치해야 합니다.
+
+install.packages("usethis")
+usethis::edit_r_profile()
+제대로 적용됐는지 확인
+
+R에서 아래 실행:
+
+getOption("repos")
+
+출력에 CRAN이 https://cloud.r-project.org로 보이면 정상입니다. getOption("repos") 값이 패키지 설치 시 기본 저장소로 사용됩니다.
+
+추천 설정 예시
+
+초보자용으로는 .Rprofile에 이것만 있어도 충분합니다.
+
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+
+원하시면 제가 바로 Windows 기준으로 .Rprofile 파일을 어디에 만들지 아주 구체적인 경로 예시로 적어드리겠습니다.
