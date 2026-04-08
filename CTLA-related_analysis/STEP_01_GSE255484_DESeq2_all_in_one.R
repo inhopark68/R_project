@@ -86,22 +86,46 @@ if (!all(colnames(expr) == rownames(meta))) {
 # 4) group 생성
 # responder -> Responder
 # control -> Control
-# stable + non-responder -> Other
+# stable + non-responder -> Non-responder
+#
+# 중요:
+# "non-responder" 안에 "responder" 문자열이 포함되므로
+# 반드시 non-responder/stable 을 responder보다 먼저 판별해야 함
 # -----------------------------
+title_clean <- trimws(meta$title)
+
 meta$group <- ifelse(
-  grepl("responder", meta$title, ignore.case = TRUE),
-  "Responder",
+  grepl("\\bcontrol\\b", title_clean, ignore.case = TRUE),
+  "Control",
   ifelse(
-    grepl("control", meta$title, ignore.case = TRUE),
-    "Control",
-    "Other"
+    grepl("non[- ]?responder|\\bstable\\b", title_clean, ignore.case = TRUE),
+    "Non-responder",
+    ifelse(
+      grepl("\\bresponder\\b", title_clean, ignore.case = TRUE),
+      "Responder",
+      NA_character_
+    )
   )
 )
 
-meta$group <- factor(meta$group, levels = c("Control", "Other", "Responder"))
+meta$group <- factor(
+  meta$group,
+  levels = c("Control", "Non-responder", "Responder")
+)
 
 cat("group table:\n")
-print(table(meta$group))
+print(table(meta$group, useNA = "ifany"))
+
+if (any(is.na(meta$group))) {
+  warning("Some samples could not be assigned to a group. Check meta$title values.")
+}
+
+# DESeq2에는 NA group이 들어가면 안 되므로 제거
+keep_idx <- !is.na(meta$group)
+meta <- meta[keep_idx, , drop = FALSE]
+expr <- expr[, keep_idx, drop = FALSE]
+
+cat("samples retained after group assignment:", ncol(expr), "\n")
 
 # -----------------------------
 # 5) DESeq2 객체 생성 및 실행
@@ -121,8 +145,8 @@ cat("dds dim after filtering:", dim(dds), "\n")
 # 6) DEG 결과 추출
 # -----------------------------
 res_RC <- results(dds, contrast = c("group", "Responder", "Control"))
-res_OC <- results(dds, contrast = c("group", "Other", "Control"))
-res_RO <- results(dds, contrast = c("group", "Responder", "Other"))
+res_NC <- results(dds, contrast = c("group", "Non-responder", "Control"))
+res_RN <- results(dds, contrast = c("group", "Responder", "Non-responder"))
 
 # -----------------------------
 # 7) gene annotation 함수
@@ -168,26 +192,26 @@ add_gene_annotation <- function(res_obj, anno_db) {
 
 # annotation 추가
 res_RC_df <- add_gene_annotation(res_RC, anno_db)
-res_OC_df <- add_gene_annotation(res_OC, anno_db)
-res_RO_df <- add_gene_annotation(res_RO, anno_db)
+res_NC_df <- add_gene_annotation(res_NC, anno_db)
+res_RN_df <- add_gene_annotation(res_RN, anno_db)
 
 # -----------------------------
 # 8) 유의 유전자 추출
 # -----------------------------
 sig_RC <- subset(res_RC_df, !is.na(padj) & padj < 0.05 & abs(log2FoldChange) >= 1)
-sig_OC <- subset(res_OC_df, !is.na(padj) & padj < 0.05 & abs(log2FoldChange) >= 1)
-sig_RO <- subset(res_RO_df, !is.na(padj) & padj < 0.05 & abs(log2FoldChange) >= 1)
+sig_NC <- subset(res_NC_df, !is.na(padj) & padj < 0.05 & abs(log2FoldChange) >= 1)
+sig_RN <- subset(res_RN_df, !is.na(padj) & padj < 0.05 & abs(log2FoldChange) >= 1)
 
 # -----------------------------
 # 9) 결과 저장
 # -----------------------------
 write.csv(res_RC_df, "DEG_Responder_vs_Control.csv", row.names = FALSE)
-write.csv(res_OC_df, "DEG_Other_vs_Control.csv", row.names = FALSE)
-write.csv(res_RO_df, "DEG_Responder_vs_Other.csv", row.names = FALSE)
+write.csv(res_NC_df, "DEG_NonResponder_vs_Control.csv", row.names = FALSE)
+write.csv(res_RN_df, "DEG_Responder_vs_NonResponder.csv", row.names = FALSE)
 
 write.csv(sig_RC, "SIG_Responder_vs_Control.csv", row.names = FALSE)
-write.csv(sig_OC, "SIG_Other_vs_Control.csv", row.names = FALSE)
-write.csv(sig_RO, "SIG_Responder_vs_Other.csv", row.names = FALSE)
+write.csv(sig_NC, "SIG_NonResponder_vs_Control.csv", row.names = FALSE)
+write.csv(sig_RN, "SIG_Responder_vs_NonResponder.csv", row.names = FALSE)
 
 # -----------------------------
 # 10) MA plot 저장
@@ -196,12 +220,12 @@ png("MAplot_Responder_vs_Control.png", width = 1200, height = 1000, res = 150)
 plotMA(res_RC, main = "MA plot: Responder vs Control", ylim = c(-5, 5))
 dev.off()
 
-png("MAplot_Other_vs_Control.png", width = 1200, height = 1000, res = 150)
-plotMA(res_OC, main = "MA plot: Other vs Control", ylim = c(-5, 5))
+png("MAplot_NonResponder_vs_Control.png", width = 1200, height = 1000, res = 150)
+plotMA(res_NC, main = "MA plot: Non-responder vs Control", ylim = c(-5, 5))
 dev.off()
 
-png("MAplot_Responder_vs_Other.png", width = 1200, height = 1000, res = 150)
-plotMA(res_RO, main = "MA plot: Responder vs Other", ylim = c(-5, 5))
+png("MAplot_Responder_vs_NonResponder.png", width = 1200, height = 1000, res = 150)
+plotMA(res_RN, main = "MA plot: Responder vs Non-responder", ylim = c(-5, 5))
 dev.off()
 
 # -----------------------------
@@ -285,8 +309,8 @@ rownames(mat_top) <- make.unique(row_labels)
 
 mat_top_scaled <- t(scale(t(mat_top)))
 
-annotation_col <- data.frame(group = meta$group)
-rownames(annotation_col) <- rownames(meta)
+annotation_col <- data.frame(group = colData(dds)$group)
+rownames(annotation_col) <- colnames(dds)
 
 png("Heatmap_top50_variable_genes.png", width = 1200, height = 1000, res = 150)
 pheatmap(
@@ -307,19 +331,19 @@ dev.off()
 cat("\n===== 분석 완료 =====\n")
 cat("유의 유전자 수\n")
 cat("Responder vs Control:", nrow(sig_RC), "\n")
-cat("Other vs Control:", nrow(sig_OC), "\n")
-cat("Responder vs Other:", nrow(sig_RO), "\n")
+cat("Non-responder vs Control:", nrow(sig_NC), "\n")
+cat("Responder vs Non-responder:", nrow(sig_RN), "\n")
 
 cat("\n저장된 파일\n")
 cat("- DEG_Responder_vs_Control.csv\n")
-cat("- DEG_Other_vs_Control.csv\n")
-cat("- DEG_Responder_vs_Other.csv\n")
+cat("- DEG_NonResponder_vs_Control.csv\n")
+cat("- DEG_Responder_vs_NonResponder.csv\n")
 cat("- SIG_Responder_vs_Control.csv\n")
-cat("- SIG_Other_vs_Control.csv\n")
-cat("- SIG_Responder_vs_Other.csv\n")
+cat("- SIG_NonResponder_vs_Control.csv\n")
+cat("- SIG_Responder_vs_NonResponder.csv\n")
 cat("- MAplot_Responder_vs_Control.png\n")
-cat("- MAplot_Other_vs_Control.png\n")
-cat("- MAplot_Responder_vs_Other.png\n")
+cat("- MAplot_NonResponder_vs_Control.png\n")
+cat("- MAplot_Responder_vs_NonResponder.png\n")
 cat("- Sample_distance_heatmap.png\n")
 cat("- Normalized_counts.csv\n")
 cat("- Heatmap_top50_variable_genes.png\n")
